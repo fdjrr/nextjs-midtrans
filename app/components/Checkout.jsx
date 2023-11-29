@@ -1,7 +1,10 @@
 import React, { useState } from "react";
+import { product } from "@/app/libs/product";
+import Link from "next/link";
 
 const Checkout = () => {
   const [quantity, setQuantity] = useState(1);
+  const [paymentUrl, setPaymentUrl] = useState("");
 
   const decreaseQuantity = () => {
     setQuantity((prevState) => (quantity > 1 ? prevState - 1 : null));
@@ -12,11 +15,58 @@ const Checkout = () => {
   };
 
   const checkout = async () => {
-    alert("Checkout SNAP! 🌟")
+    const data = {
+      id: product.id,
+      productName: product.name,
+      price: product.price,
+      quantity: quantity,
+    };
+
+    const req = await fetch(`/api/midtrans`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+
+    const res = await req.json();
+
+    window.snap.pay(res.token);
   };
 
   const generatePaymentLink = async () => {
-    alert("Checkout Payment Link! 🔥")
+    const secret = process.env.NEXT_PUBLIC_MIDTRANS_SERVER_KEY;
+    const encodeSecret = Buffer.from(secret).toString("base64");
+
+    let data = {
+      item_details: [
+        {
+          price: product.price,
+          quantity: quantity,
+          name: product.name,
+        },
+      ],
+      transaction_details: {
+        order_id: product.id,
+        gross_amount: product.price * quantity,
+      },
+    };
+
+    const req = await fetch(
+      `${process.env.NEXT_PUBLIC_MIDTRANS_API}/v1/payment-links`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Basic ${encodeSecret}`,
+        },
+        body: JSON.stringify(data),
+      }
+    );
+
+    const res = await req.json();
+
+    if (req.ok) {
+      setPaymentUrl(res.payment_url);
+    }
   };
 
   return (
@@ -58,6 +108,14 @@ const Checkout = () => {
       >
         Create Payment Link
       </button>
+
+      {paymentUrl && (
+        <div className="text-black text-sm italic">
+          <Link href={paymentUrl} target="_blank">
+            Klik disini untuk melakukan pembayaran!
+          </Link>
+        </div>
+      )}
     </>
   );
 };
